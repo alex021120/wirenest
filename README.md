@@ -1,4 +1,4 @@
-# WireNest 🪺
+# WireNest
 
 > 一个轻量的 WireGuard 异地组网 Web 管理面板 —— 单二进制、一条命令装好、一个命令管理。
 
