@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -20,8 +21,18 @@ import (
 	"wireguard-ui/internal/wg"
 )
 
+// version is injected at build time via -ldflags "-X main.version=v0.1.2".
+// The self-updater also runs the downloaded binary with `-version` to validate it.
+var version = "dev"
+
 func main() {
+	if len(os.Args) > 1 && (os.Args[1] == "-version" || os.Args[1] == "--version" || os.Args[1] == "version") {
+		fmt.Println(version)
+		return
+	}
+
 	cfg := config.Load()
+	cfg.Version = version
 
 	// Data dir holds the panel's own state (credentials, client private keys).
 	if err := os.MkdirAll(cfg.DataDir, 0o700); err != nil {

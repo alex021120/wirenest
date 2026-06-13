@@ -1,13 +1,45 @@
 <script setup lang="ts">
 import { computed, h, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter, RouterView } from 'vue-router'
-import { NLayout, NLayoutHeader, NLayoutSider, NLayoutContent, NDropdown, NAvatar, NText, useMessage, useNotification } from 'naive-ui'
+import { NLayout, NLayoutHeader, NLayoutSider, NLayoutContent, NDropdown, NAvatar, NText, useMessage, useNotification, useDialog } from 'naive-ui'
 import { api, type Overview } from '../api'
 
 const route = useRoute()
 const router = useRouter()
 const message = useMessage()
 const notification = useNotification()
+const dialog = useDialog()
+
+// --- version display + update check ---
+const version = ref('')
+async function checkVersion() {
+  let info
+  try {
+    info = await api.versionInfo()
+  } catch {
+    return // offline / GitHub unreachable: just don't show a version
+  }
+  version.value = info.current
+  if (info.updateAvailable && info.latest) {
+    dialog.info({
+      title: '发现新版本',
+      content: `当前版本 ${info.current}，最新版本 ${info.latest}。是否现在更新并重启面板？`,
+      positiveText: '立即更新',
+      negativeText: '稍后',
+      onPositiveClick: () => runUpdate(),
+    })
+  }
+}
+async function runUpdate() {
+  try {
+    await api.selfUpdate()
+    message.loading('正在下载并重启面板，约 10 秒后自动刷新…', { duration: 10000 })
+    // The server replaces its binary and re-execs; reload once it's back.
+    setTimeout(() => location.reload(), 10000)
+  } catch (e) {
+    message.error('更新失败：' + (e as Error).message)
+  }
+}
 
 interface NavItem {
   key: string
@@ -102,6 +134,7 @@ onMounted(async () => {
   }
   pollClients()
   clientsTimer = setInterval(pollClients, CLIENT_POLL_MS)
+  checkVersion()
 })
 onUnmounted(() => clearInterval(clientsTimer))
 </script>
@@ -121,7 +154,10 @@ onUnmounted(() => clearInterval(clientsTimer))
           </svg>
         </div>
         <div class="brand-text">
-          <span class="brand-name">WireNest</span>
+          <span class="brand-name">
+            WireNest
+            <span v-if="version" class="brand-ver">{{ version }}</span>
+          </span>
           <span class="brand-sub">WireGuard 面板</span>
         </div>
       </div>
@@ -263,6 +299,17 @@ onUnmounted(() => clearInterval(clientsTimer))
   font-weight: 650;
   color: #1f2933;
   letter-spacing: -0.01em;
+}
+.brand-ver {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #9aa5b1;
+  background: #f3f4f6;
+  border-radius: 6px;
+  padding: 1px 6px;
+  margin-left: 4px;
+  vertical-align: middle;
+  letter-spacing: 0;
 }
 .brand-sub {
   font-size: 11px;

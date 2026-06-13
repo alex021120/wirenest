@@ -14,6 +14,7 @@ import (
 	"wireguard-ui/internal/auth"
 	"wireguard-ui/internal/config"
 	"wireguard-ui/internal/sysinfo"
+	"wireguard-ui/internal/update"
 	"wireguard-ui/internal/wg"
 )
 
@@ -145,6 +146,28 @@ func (h *Handlers) SetAutostart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"autostart": h.wg.AutostartEnabled()})
+}
+
+// Version reports the running version and, if reachable, the latest release and
+// whether an update is available. Failures to reach GitHub degrade gracefully.
+func (h *Handlers) Version(w http.ResponseWriter, r *http.Request) {
+	out := map[string]any{"current": h.cfg.Version, "updateAvailable": false}
+	if latest, err := update.Latest(r.Context(), h.cfg.Repo); err == nil {
+		out["latest"] = latest
+		out["updateAvailable"] = update.IsNewer(latest, h.cfg.Version)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// Update downloads the latest release binary, replaces the running one and
+// re-execs into it. The panel briefly restarts; the client should reload after.
+func (h *Handlers) Update(w http.ResponseWriter, r *http.Request) {
+	tag, err := update.SelfUpdate(r.Context(), h.cfg.Repo, h.cfg.Version)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "更新失败：" + err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updating", "version": tag})
 }
 
 // EnableIPForward turns on IPv4 forwarding (immediate + persistent).

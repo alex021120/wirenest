@@ -126,6 +126,9 @@ export const api = {
   me: () => request<{ username: string }>('/api/me'),
   overview: () => request<Overview>('/api/overview'),
   system: () => request<SystemInfo>('/api/system'),
+  versionInfo: () =>
+    request<{ current: string; latest?: string; updateAvailable: boolean }>('/api/version'),
+  selfUpdate: () => request<{ status: string; version: string }>('/api/update', { method: 'POST' }),
   enableIPForward: () =>
     request<{ ipv4Forwarding: boolean }>('/api/system/ip-forward', { method: 'POST' }),
   interfaceControl: (action: 'up' | 'down' | 'restart') =>

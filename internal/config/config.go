@@ -23,6 +23,11 @@ type Config struct {
 	// EndpointHost is the public host (IP or DNS) clients dial. Used to render
 	// the Endpoint line in generated client configs. Empty -> a placeholder.
 	EndpointHost string
+	// Repo is the GitHub "owner/repo" used to check for and download updates.
+	Repo string
+	// Version is the build version (e.g. "v0.1.2"), injected at build time and
+	// set by main; "dev" for unversioned local builds.
+	Version string
 }
 
 func env(key, def string) string {
@@ -48,5 +53,6 @@ func Load() Config {
 		DataDir:      env("WGUI_DATA_DIR", "/var/lib/wireguard-ui"),
 		WgConfPath:   env("WGUI_WG_CONF", "/etc/wireguard/wg0.conf"),
 		EndpointHost: env("WGUI_ENDPOINT", ""),
+		Repo:         env("WGUI_REPO", "alex021120/wirenest"),
 	}
 }

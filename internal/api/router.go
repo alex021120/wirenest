@@ -17,6 +17,8 @@ func (h *Handlers) Mount(mux *http.ServeMux, mgr *auth.Manager) {
 	// Authenticated endpoints.
 	mux.HandleFunc("GET /api/overview", mgr.Require(h.Overview))
 	mux.HandleFunc("GET /api/system", mgr.Require(h.System))
+	mux.HandleFunc("GET /api/version", mgr.Require(h.Version))
+	mux.HandleFunc("POST /api/update", mgr.Require(h.Update))
 	mux.HandleFunc("POST /api/system/ip-forward", mgr.Require(h.EnableIPForward))
 	mux.HandleFunc("POST /api/interface", mgr.Require(h.InterfaceControl))
 	mux.HandleFunc("POST /api/interface/autostart", mgr.Require(h.SetAutostart))
