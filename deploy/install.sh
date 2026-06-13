@@ -100,6 +100,16 @@ else
   rm -f "$tmp"
 fi
 
+# --- management CLI: `wirenest` menu (start/stop/update/port/password) ---
+say "安装管理命令 wirenest…"
+if curl -fsSL "https://raw.githubusercontent.com/${REPO}/main/deploy/wirenest" -o /usr/local/bin/wirenest 2>/dev/null \
+   && head -1 /usr/local/bin/wirenest | grep -q '^#!'; then
+  chmod 0755 /usr/local/bin/wirenest
+else
+  rm -f /usr/local/bin/wirenest
+  say "（wirenest 下载失败，跳过；不影响面板运行）"
+fi
+
 # --- directories ---
 mkdir -p /etc/wireguard "$DATA_DIR"
 chmod 700 /etc/wireguard "$DATA_DIR"
@@ -166,4 +176,7 @@ printf '  监听     : %s\n' "$WGUI_ADDR"
 printf '  用户名   : %s\n' "$ADMIN_USER"
 printf '  密码     : %s\n' "$ADMIN_PASS"
 [[ "$ADMIN_PASS" == "admin" ]] && printf '\033[1;31m  ⚠️ 你使用了默认弱密码 admin，请尽快在面板「设置」里修改。\033[0m\n'
+if [[ -x /usr/local/bin/wirenest ]]; then
+  printf '\n管理命令: 运行 \033[1mwirenest\033[0m 调出菜单（启动/停止/更新/改端口/重置密码）。\n'
+fi
 printf '\n提示: 配置（含密码）在 %s（仅 root 可读）。生产环境请放到 HTTPS 反代后并放行防火墙端口 %s。\n' "$UNIT" "$PANEL_PORT"

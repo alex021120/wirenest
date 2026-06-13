@@ -58,6 +58,22 @@ curl -fsSL https://raw.githubusercontent.com/alex021120/wirenest/main/deploy/ins
 
 装好后建议放到 HTTPS 反向代理（nginx/caddy）之后，并在防火墙放行面板端口。
 
+## 管理命令 `wirenest`
+
+一键安装会附带一个管理命令，直接运行调出菜单：
+
+```bash
+sudo wirenest
+```
+
+```
+  1) 启动面板      4) 更新面板到最新版
+  2) 停止面板      5) 更换运行端口
+  3) 重启面板      6) 重置登录密码
+```
+
+也支持子命令：`wirenest {start|stop|restart|update|status}`。其中「重置登录密码」用于忘记密码时找回（重写 systemd 环境变量并清除 `credentials.json`）。
+
 ## 手动部署
 ```bash
 make build                       # 打包前端 + embed 编译，产出 ./wireguard-ui
