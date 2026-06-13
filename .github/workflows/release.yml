@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need the full history + annotated tag object for notes
 
       - uses: actions/setup-node@v4
         with:
@@ -36,8 +38,16 @@ jobs:
               -o "dist/wireguard-ui-linux-$arch" ./cmd/wireguard-ui
           done
 
+      # Use the annotated tag's message as the release notes, so each release
+      # explains what changed. Falls back to a generic line if the tag is light.
+      - name: Build release notes from tag
+        run: |
+          notes="$(git tag -l --format='%(contents)' "${GITHUB_REF_NAME}")"
+          [ -n "$notes" ] || notes="WireNest ${GITHUB_REF_NAME}"
+          printf '%s\n' "$notes" > release-notes.md
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/wireguard-ui-linux-*
-          generate_release_notes: true
+          body_path: release-notes.md
