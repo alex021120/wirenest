@@ -1,0 +1,122 @@
+/* Global base styles: clean, fresh foundation shared by every view. */
+
+:root {
+  --bg: #f6f8fb;
+  --ink: #1f2933;
+  --ink-2: #52606d;
+  --ink-3: #9aa5b1;
+  --line: #eef1f4;
+  --brand: #f2c200;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+/* --- Shared animation keyframes --- */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes pulseRing {
+  0% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(22, 163, 74, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0);
+  }
+}
+
+/* --- Micro-interactions --- */
+/* Soft default depth on cards; stat cards add their own hover lift. */
+.n-card {
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+}
+/* Tactile button press. */
+.n-button {
+  transition: transform 0.08s ease, filter 0.15s ease;
+}
+.n-button:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* Slim, unobtrusive scrollbars for a tidier feel. */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #d6dbe2;
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #c2c9d2;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* --- Compact "client online" toast (top-right) ---
+   Scoped via the provider's container-class so only this notification shrinks.
+   Override Naive's inline --n-* vars with !important (inline styles otherwise
+   win over stylesheet custom-property declarations). */
+.toast-compact .n-notification {
+  --n-width: auto !important;
+  --n-padding-top: 14px !important;
+  --n-padding-bottom: 14px !important;
+  --n-padding-left: 18px !important;
+  --n-padding-right: 20px !important;
+  --n-font-size: 14.5px !important;
+  --n-line-height: 1.4 !important;
+  --n-border-radius: 12px !important;
+  max-width: 330px;
+  min-width: 0;
+}
+/* No avatar/title/meta in our compact toast — drop their reserved spacing. */
+.toast-compact .n-notification .n-notification-main {
+  margin: 0 !important;
+}
+.toast-compact .n-notification .n-notification-main__content {
+  margin: 0 !important;
+}
+.toast-compact .online-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #16a34a;
+  flex: none;
+  box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45);
+  animation: onlinePulse 1.6s ease-out infinite;
+}
+@keyframes onlinePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(22, 163, 74, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0);
+  }
+}
