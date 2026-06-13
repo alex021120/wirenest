@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-command installer for WireNest (WireGuard 管理面板).
 #
-#   curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/deploy/install.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/alex021120/wirenest/main/deploy/install.sh | sudo bash
 #
 # 运行后会**引导你输入**监听地址 / 面板端口 / 管理员用户名 / 管理员密码（直接回车用默认值），
 # 其余目录与配置一律采用默认。无需在命令行附加任何参数。
@@ -10,8 +10,8 @@
 # 并以 systemd 运行面板。
 set -euo pipefail
 
-# --- 仓库（下载二进制用）。维护者可改成自己的 owner/repo，或用 WGUI_REPO 环境变量传入。 ---
-REPO="${WGUI_REPO:-}"
+# --- 仓库（下载二进制用）。可用 WGUI_REPO 环境变量覆盖。 ---
+REPO="${WGUI_REPO:-alex021120/wirenest}"
 
 # --- 这些保持默认，不询问 ---
 WG_IFACE="wg0"

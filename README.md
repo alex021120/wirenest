@@ -37,10 +37,10 @@ make build      # 先打包前端，再 embed 编译，产出 ./wireguard-ui
 
 ## 一键安装（推荐）
 
-在全新的 Linux 服务器上（Debian/Ubuntu/CentOS/Alpine/Arch），以 root 执行一条命令（把 `OWNER/REPO` 换成本仓库地址）：
+在全新的 Linux 服务器上（Debian/Ubuntu/CentOS/Alpine/Arch），以 root 执行一条命令：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/deploy/install.sh | sudo WGUI_REPO=OWNER/REPO bash
+curl -fsSL https://raw.githubusercontent.com/alex021120/wirenest/main/deploy/install.sh | sudo bash
 ```
 
 运行后会**引导你输入**几项配置，直接回车即用默认值，其余一律用默认：
@@ -54,8 +54,7 @@ curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/deploy/install.sh |
 
 随后脚本自动：装 `wireguard-tools` → 下载预编译二进制 → 生成 `wg0` 接口与服务端密钥 → 开启 IPv4 转发 → 设置开机自启 → 以 systemd 运行面板（结束打印面板地址 / 账号 / 密码）。
 
-> - 维护者可把 `deploy/install.sh` 顶部的 `REPO=` 改成自己的仓库，使用者就不必再传 `WGUI_REPO`。
-> - 前提：仓库已 `git tag v0.1.0 && git push --tags` 触发 GitHub Actions 构建并发布 Release（见 `.github/workflows/release.yml`），install.sh 从最新 Release 下载二进制。
+> 前提：仓库已 `git tag v0.1.0 && git push --tags` 触发 GitHub Actions 构建并发布 Release（见 `.github/workflows/release.yml`），install.sh 从最新 Release 下载二进制。
 
 装好后建议放到 HTTPS 反向代理（nginx/caddy）之后，并在防火墙放行面板端口。
 
