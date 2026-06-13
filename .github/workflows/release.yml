@@ -39,9 +39,11 @@ jobs:
           done
 
       # Use the annotated tag's message as the release notes, so each release
-      # explains what changed. Falls back to a generic line if the tag is light.
+      # explains what changed. checkout can leave a lightweight local tag (whose
+      # %(contents) is the commit message), so force-fetch the real tag object.
       - name: Build release notes from tag
         run: |
+          git fetch --force --tags origin "refs/tags/${GITHUB_REF_NAME}" 2>/dev/null || git fetch --force --tags
           notes="$(git tag -l --format='%(contents)' "${GITHUB_REF_NAME}")"
           [ -n "$notes" ] || notes="WireNest ${GITHUB_REF_NAME}"
           printf '%s\n' "$notes" > release-notes.md
