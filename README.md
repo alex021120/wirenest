@@ -78,9 +78,9 @@ sudo wirenest
 ```bash
 make build                       # 打包前端 + embed 编译，产出 ./wireguard-ui
 sudo install -m755 ./wireguard-ui /usr/local/bin/wireguard-ui
-sudo cp deploy/wireguard-ui.service /etc/systemd/system/
+sudo cp deploy/wirenest.service /etc/systemd/system/
 # 改好 unit 里的 WGUI_ADMIN_PASS 等，然后：
-sudo systemctl enable --now wireguard-ui
+sudo systemctl enable --now wirenest
 ```
 
 ## 配置（环境变量）

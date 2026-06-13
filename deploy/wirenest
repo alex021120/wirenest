@@ -4,8 +4,13 @@
 # 也支持直接子命令：wirenest {start|stop|restart|update|status}
 set -uo pipefail
 
-UNIT_NAME="wireguard-ui"
+UNIT_NAME="wirenest"
 UNIT="/etc/systemd/system/${UNIT_NAME}.service"
+# Fall back to the legacy unit name for installs predating the rename.
+if [[ ! -f "$UNIT" && -f "/etc/systemd/system/wireguard-ui.service" ]]; then
+  UNIT_NAME="wireguard-ui"
+  UNIT="/etc/systemd/system/wireguard-ui.service"
+fi
 BIN="/usr/local/bin/wireguard-ui"
 DATA_DIR="/var/lib/wireguard-ui"
 REPO="${WGUI_REPO:-alex021120/wirenest}"

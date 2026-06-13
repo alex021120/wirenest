@@ -20,7 +20,8 @@ WG_PORT="51820"
 DATA_DIR="/var/lib/wireguard-ui"
 WG_CONF="/etc/wireguard/${WG_IFACE}.conf"
 BIN_DST="/usr/local/bin/wireguard-ui"
-UNIT="/etc/systemd/system/wireguard-ui.service"
+UNIT="/etc/systemd/system/wirenest.service"
+OLD_UNIT="/etc/systemd/system/wireguard-ui.service" # migrated from on re-install
 
 say()  { printf '\033[1;33m==>\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31m错误:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -66,7 +67,11 @@ PANEL_PORT="$(ask '面板端口'     '8000')"
 ADMIN_USER="$(ask '管理员用户名' 'admin')"
 # 重装时默认保持当前密码（回车不会把已设密码重置成 admin）；首装默认 admin。
 EXISTING_PASS=""
-[[ -f "$UNIT" ]] && EXISTING_PASS="$(sed -n 's/^Environment=WGUI_ADMIN_PASS=//p' "$UNIT" | head -n1)"
+for u in "$UNIT" "$OLD_UNIT"; do
+  [[ -f "$u" ]] || continue
+  EXISTING_PASS="$(sed -n 's/^Environment=WGUI_ADMIN_PASS=//p' "$u" | head -n1)"
+  [[ -n "$EXISTING_PASS" ]] && break
+done
 if [[ -n "$EXISTING_PASS" ]]; then
   ADMIN_PASS="$(ask_secret '管理员密码（回车=保持当前）' "$EXISTING_PASS")"
 else
@@ -168,7 +173,14 @@ EOF
 chmod 600 "$UNIT"   # the unit holds the admin password
 
 systemctl daemon-reload
-systemctl enable --now wireguard-ui
+systemctl enable --now wirenest
+
+# Migrate from the old unit name (wireguard-ui.service), if present.
+if [[ -f "$OLD_UNIT" ]]; then
+  systemctl disable --now wireguard-ui 2>/dev/null || true
+  rm -f "$OLD_UNIT"
+  systemctl daemon-reload
+fi
 
 printf '\n\033[1;32m✓ 安装完成\033[0m\n'
 printf '  面板地址 : http://%s:%s\n' "${PUBIP:-<服务器IP>}" "$PANEL_PORT"
