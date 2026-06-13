@@ -163,6 +163,7 @@ say "写入 systemd 服务并启动面板…"
 cat > "$UNIT" <<EOF
 [Unit]
 Description=WireNest - WireGuard management panel
+StartLimitIntervalSec=0
 After=network-online.target
 Wants=network-online.target
 

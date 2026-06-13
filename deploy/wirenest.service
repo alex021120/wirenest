@@ -2,6 +2,7 @@
 # Reference template. The one-command installer (deploy/install.sh) generates
 # its own copy with a random admin password and the detected public IP filled in.
 Description=WireNest - WireGuard management panel
+StartLimitIntervalSec=0
 After=network-online.target
 Wants=network-online.target
 
