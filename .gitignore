@@ -1,5 +1,5 @@
 # Go
-/wireguard-ui
+/wirenest-panel
 *.exe
 
 # Node / frontend

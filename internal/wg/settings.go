@@ -22,7 +22,7 @@ type Settings struct {
 }
 
 // OpenSettings loads settings from path; if absent, it starts with the given
-// default endpoint (typically from the WGUI_ENDPOINT env var).
+// default endpoint (typically from the WIRENEST_ENDPOINT env var).
 func OpenSettings(path, defaultEndpoint string) (*Settings, error) {
 	s := &Settings{path: path, data: SettingsData{EndpointHost: defaultEndpoint}}
 	raw, err := os.ReadFile(path)

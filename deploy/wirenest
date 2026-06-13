@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
 # WireNest 管理菜单。装到 /usr/local/bin/wirenest，直接运行 `wirenest` 调出菜单。
-#   启动 / 停止 / 重启 / 更新 / 改端口 / 重置登录密码。
-# 也支持直接子命令：wirenest {start|stop|restart|update|status}
+#   启动 / 停止 / 重启 / 更新 / 改端口 / 重置密码 / 卸载。
+# 也支持直接子命令：wirenest {start|stop|restart|update|status|uninstall}
 set -uo pipefail
 
 UNIT_NAME="wirenest"
 UNIT="/etc/systemd/system/${UNIT_NAME}.service"
-# Fall back to the legacy unit name for installs predating the rename.
-if [[ ! -f "$UNIT" && -f "/etc/systemd/system/wireguard-ui.service" ]]; then
-  UNIT_NAME="wireguard-ui"
-  UNIT="/etc/systemd/system/wireguard-ui.service"
-fi
-BIN="/usr/local/bin/wireguard-ui"
-DATA_DIR="/var/lib/wireguard-ui"
-REPO="${WGUI_REPO:-alex021120/wirenest}"
+BIN="/usr/local/bin/wirenest-panel"
+DATA_DIR="/var/lib/wirenest"
+WG_IFACE="wg0"
+WG_CONF="/etc/wireguard/${WG_IFACE}.conf"
+SYSCTL="/etc/sysctl.d/99-wirenest.conf"
+REPO="${WIRENEST_REPO:-alex021120/wirenest}"
+
+# 兼容旧命名（迁移前的安装）。
+[[ ! -f "$UNIT" && -f "/etc/systemd/system/wireguard-ui.service" ]] && { UNIT_NAME="wireguard-ui"; UNIT="/etc/systemd/system/wireguard-ui.service"; }
+[[ ! -x "$BIN" && -x "/usr/local/bin/wireguard-ui" ]] && BIN="/usr/local/bin/wireguard-ui"
 
 c_reset=$'\033[0m'; c_bold=$'\033[1m'; c_y=$'\033[1;33m'; c_g=$'\033[1;32m'; c_r=$'\033[1;31m'; c_dim=$'\033[2m'
 
@@ -22,27 +24,22 @@ pause()     { read -rp $'\n回车返回菜单… ' _; }
 
 get_env() { sed -n "s/^Environment=${1}=//p" "$UNIT" 2>/dev/null | head -n1; }
 
-# 安全地改写单元里某个 Environment=KEY=VALUE 行（不走 sed，避免特殊字符问题）。
-set_env() {
+set_env() { # 安全改写 Environment=KEY=VALUE 行（不走 sed，避免特殊字符问题）
   local key="$1" val="$2" tmp found=0
   tmp="$(mktemp)"
   while IFS= read -r line; do
     if [[ "$line" == "Environment=${key}="* ]]; then
       printf 'Environment=%s=%s\n' "$key" "$val"; found=1
-    else
-      printf '%s\n' "$line"
-    fi
+    else printf '%s\n' "$line"; fi
   done < "$UNIT" > "$tmp"
   [[ $found -eq 1 ]] || { rm -f "$tmp"; return 1; }
   cat "$tmp" > "$UNIT"; rm -f "$tmp"
 }
 
-server_ip() { curl -fsS --max-time 4 https://api.ip.sb/ip 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}'; }
-
 print_status() {
   local active addr port ver
   active="$(systemctl is-active "$UNIT_NAME" 2>/dev/null)"
-  addr="$(get_env WGUI_ADDR)"; port="${addr##*:}"
+  addr="$(get_env WIRENEST_ADDR)"; [[ -z "$addr" ]] && addr="$(get_env WGUI_ADDR)"; port="${addr##*:}"
   ver="$([[ -x "$BIN" ]] && "$BIN" -version 2>/dev/null)"
   local dot text
   if [[ "$active" == "active" ]]; then dot="${c_g}●${c_reset}"; text="${c_g}运行中${c_reset}"; else dot="${c_r}●${c_reset}"; text="${c_r}${active:-未安装}${c_reset}"; fi
@@ -51,7 +48,6 @@ print_status() {
   printf '  %s面板: http://<服务器IP>:%s%s\n' "$c_dim" "${port:-?}" "$c_reset"
 }
 
-# --- actions ---
 panel_start()   { systemctl start   "$UNIT_NAME" && echo "${c_g}已启动${c_reset}" || echo "${c_r}启动失败${c_reset}"; }
 panel_stop()    { systemctl stop    "$UNIT_NAME" && echo "${c_g}已停止${c_reset}" || echo "${c_r}停止失败${c_reset}"; }
 panel_restart() { systemctl restart "$UNIT_NAME" && echo "${c_g}已重启${c_reset}" || echo "${c_r}重启失败${c_reset}"; }
@@ -65,7 +61,7 @@ panel_update() {
             | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
   if [[ -n "$latest" && "$latest" == "$current" ]]; then echo "${c_g}已经是最新版本 ${current}${c_reset}"; return; fi
   [[ -n "$latest" ]] && echo "最新版本: $latest"
-  url="https://github.com/${REPO}/releases/latest/download/wireguard-ui-linux-${arch}"
+  url="https://github.com/${REPO}/releases/latest/download/wirenest-linux-${arch}"
   echo "下载中: $url"
   tmp="$(mktemp)"
   if ! curl -fL --retry 3 -o "$tmp" "$url"; then echo "${c_r}下载失败${c_reset}"; rm -f "$tmp"; return; fi
@@ -78,11 +74,13 @@ panel_update() {
 
 change_port() {
   local addr host cur new
-  addr="$(get_env WGUI_ADDR)"; host="${addr%:*}"; cur="${addr##*:}"
+  addr="$(get_env WIRENEST_ADDR)"; [[ -z "$addr" ]] && addr="$(get_env WGUI_ADDR)"
+  host="${addr%:*}"; cur="${addr##*:}"
   read -rp "新端口（当前 ${cur:-8000}，回车不变）: " new
   [[ -z "$new" ]] && { echo "未修改"; return; }
   [[ "$new" =~ ^[0-9]+$ ]] && (( new >= 1 && new <= 65535 )) || { echo "${c_r}端口无效（1-65535）${c_reset}"; return; }
-  set_env WGUI_ADDR "${host:-0.0.0.0}:${new}" || { echo "${c_r}单元文件异常，未找到 WGUI_ADDR${c_reset}"; return; }
+  set_env WIRENEST_ADDR "${host:-0.0.0.0}:${new}" || set_env WGUI_ADDR "${host:-0.0.0.0}:${new}" \
+    || { echo "${c_r}单元文件异常${c_reset}"; return; }
   systemctl daemon-reload && systemctl restart "$UNIT_NAME"
   echo "${c_g}端口已改为 ${new} 并重启${c_reset}"
   echo "${c_y}提醒: 记得在防火墙/云安全组放行端口 ${new}${c_reset}"
@@ -95,15 +93,40 @@ reset_password() {
   [[ -z "$p1" ]] && { echo "${c_r}密码不能为空${c_reset}"; return; }
   [[ "$p1" == "$p2" ]] || { echo "${c_r}两次输入不一致${c_reset}"; return; }
   case "$p1" in *[\ \"]*) echo "${c_r}密码请勿包含空格或双引号${c_reset}"; return;; esac
-  # 保留已在面板里改过的用户名（若有 credentials.json）。
   if [[ -f "$DATA_DIR/credentials.json" ]]; then
     user="$(sed -n 's/.*"username"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$DATA_DIR/credentials.json" | head -1)"
-    [[ -n "$user" ]] && set_env WGUI_ADMIN_USER "$user"
+    [[ -n "$user" ]] && { set_env WIRENEST_ADMIN_USER "$user" || set_env WGUI_ADMIN_USER "$user"; }
   fi
-  set_env WGUI_ADMIN_PASS "$p1" || { echo "${c_r}单元文件异常，未找到 WGUI_ADMIN_PASS${c_reset}"; return; }
-  rm -f "$DATA_DIR/credentials.json"          # 让 env 里的新密码重新生效
+  set_env WIRENEST_ADMIN_PASS "$p1" || set_env WGUI_ADMIN_PASS "$p1" || { echo "${c_r}单元文件异常${c_reset}"; return; }
+  rm -f "$DATA_DIR/credentials.json"
   systemctl daemon-reload && systemctl restart "$UNIT_NAME"
-  echo "${c_g}密码已重置，登录用户名: $(get_env WGUI_ADMIN_USER)${c_reset}"
+  local u; u="$(get_env WIRENEST_ADMIN_USER)"; [[ -z "$u" ]] && u="$(get_env WGUI_ADMIN_USER)"
+  echo "${c_g}密码已重置，登录用户名: ${u:-admin}${c_reset}"
+}
+
+uninstall() {
+  echo "${c_r}${c_bold}卸载 WireNest${c_reset}"
+  echo "这会删除：面板服务与二进制、管理命令、数据目录(含私钥/凭据)、"
+  echo "WireGuard 接口配置 ${WG_CONF} 并停用接口、IPv4 转发设置。${c_bold}不可恢复！${c_reset}"
+  local ans; read -rp "确认卸载请输入 yes: " ans
+  [[ "$ans" == "yes" ]] || { echo "已取消"; return; }
+
+  echo "停止并删除面板服务…"
+  systemctl disable --now "$UNIT_NAME" 2>/dev/null || true
+  systemctl disable --now wireguard-ui 2>/dev/null || true
+  rm -f "$UNIT" /etc/systemd/system/wireguard-ui.service
+  echo "停用并删除 WireGuard 接口…"
+  systemctl disable --now "wg-quick@${WG_IFACE}" 2>/dev/null || true
+  wg-quick down "$WG_IFACE" 2>/dev/null || true
+  rm -f "$WG_CONF"
+  echo "删除数据目录、二进制、sysctl 配置…"
+  rm -rf "$DATA_DIR" /var/lib/wireguard-ui
+  rm -f "$BIN" /usr/local/bin/wirenest-panel /usr/local/bin/wireguard-ui
+  rm -f "$SYSCTL" /etc/sysctl.d/99-wireguard-ui.conf
+  systemctl daemon-reload 2>/dev/null || true
+  echo "${c_g}WireNest 已卸载。${c_reset}（wireguard-tools 系统包未动；最后删除管理命令自身）"
+  rm -f /usr/local/bin/wirenest
+  exit 0
 }
 
 menu() {
@@ -112,15 +135,12 @@ menu() {
     echo "======================================"
     print_status
     echo "======================================"
-    echo "  1) 启动面板"
-    echo "  2) 停止面板"
-    echo "  3) 重启面板"
-    echo "  4) 更新面板到最新版"
-    echo "  5) 更换运行端口"
-    echo "  6) 重置登录密码"
-    echo "  0) 退出"
+    echo "  1) 启动面板        4) 更新面板到最新版"
+    echo "  2) 停止面板        5) 更换运行端口"
+    echo "  3) 重启面板        6) 重置登录密码"
+    echo "  ${c_r}9) 卸载 WireNest${c_reset}    0) 退出"
     echo "--------------------------------------"
-    read -rp "请选择 [0-6]: " choice
+    read -rp "请选择: " choice
     echo
     case "$choice" in
       1) panel_start; pause ;;
@@ -129,6 +149,7 @@ menu() {
       4) panel_update; pause ;;
       5) change_port; pause ;;
       6) reset_password; pause ;;
+      9) uninstall; pause ;;
       0) exit 0 ;;
       *) echo "无效选择"; sleep 1 ;;
     esac
@@ -136,15 +157,16 @@ menu() {
 }
 
 need_root
-[[ -f "$UNIT" ]] || { echo "${c_r}未找到 $UNIT，请先安装 WireNest${c_reset}" >&2; exit 1; }
 
-# 直接子命令（便于脚本化），否则进入交互菜单。
 case "${1:-}" in
-  start)   panel_start ;;
-  stop)    panel_stop ;;
-  restart) panel_restart ;;
-  update)  panel_update ;;
-  status)  print_status ;;
-  ""|menu) menu ;;
-  *) echo "用法: wirenest [start|stop|restart|update|status]（无参数进入菜单）" ;;
+  start)     panel_start ;;
+  stop)      panel_stop ;;
+  restart)   panel_restart ;;
+  update)    panel_update ;;
+  status)    print_status ;;
+  uninstall) uninstall ;;
+  ""|menu)
+    [[ -f "$UNIT" ]] || { echo "${c_r}未找到 $UNIT，请先安装 WireNest${c_reset}" >&2; exit 1; }
+    menu ;;
+  *) echo "用法: wirenest [start|stop|restart|update|status|uninstall]（无参数进入菜单）" ;;
 esac

@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"wireguard-ui/internal/auth"
+	"wirenest/internal/auth"
 )
 
 // Mount registers all /api routes on the given mux.

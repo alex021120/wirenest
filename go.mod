@@ -1,4 +1,4 @@
-module wireguard-ui
+module wirenest
 
 go 1.22
 

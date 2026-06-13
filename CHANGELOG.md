@@ -2,6 +2,11 @@
 
 本项目的版本变更记录。每个版本的发布说明也会同步显示在 GitHub Releases 页（来自对应 tag 的注释信息）。
 
+## v0.1.5
+- 全面更名 wireguard-ui → wirenest：面板二进制 `/usr/local/bin/wirenest-panel`、数据目录 `/var/lib/wirenest`、环境变量前缀 `WIRENEST_`、Go 模块名、Release 资产 `wirenest-linux-*`。升级时自动迁移旧命名（数据目录、单元、二进制、sysctl），并保留密码；旧版自更新仍提供 `wireguard-ui-linux-*` 兼容别名。
+- `wirenest` 菜单新增「卸载」：删除面板服务/二进制/管理命令、数据目录、wg0 配置并停用接口、IPv4 转发设置（需输入 yes 确认）。
+- 版本更新提示改为：检测到新版时左上角版本徽标变柠檬黄高亮，鼠标悬停弹出气泡「检测到新版本：vX.X.X」+ 更新按钮（不再用居中弹窗）。
+
 ## v0.1.4
 - 面板 systemd 单元由 `wireguard-ui.service` 重命名为 `wirenest.service`；安装脚本自动迁移旧单元（沿用原密码后停用删除），`wirenest` 命令兼容旧单元名。
 - Release 发布说明改为取自 tag 注释信息，从此每个版本都会说明改了什么。

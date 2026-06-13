@@ -4,12 +4,12 @@
 
 ## 设计要点
 - **单二进制零运行期依赖**：前端打包进 `internal/web/dist`，`go build` 后整个面板就是一个文件，丢到全新服务器即可运行（目标机只需 `wireguard-tools`）。
-- **以 `.conf` 为准**：`/etc/wireguard/wg0.conf` 是配置的唯一真实来源，面板读写它并用 `wg syncconf` 热加载；面板自身状态（客户端私钥、登录凭据、设置）以 JSON 文件存在 `WGUI_DATA_DIR`（0600）。
+- **以 `.conf` 为准**：`/etc/wireguard/wg0.conf` 是配置的唯一真实来源，面板读写它并用 `wg syncconf` 热加载；面板自身状态（客户端私钥、登录凭据、设置）以 JSON 文件存在 `WIRENEST_DATA_DIR`（0600）。
 - **UI**：企业级 Dashboard、扁平化、卡片式布局，主色柠檬黄。
 
 ## 目录结构
 ```
-cmd/wireguard-ui/      程序入口
+cmd/wirenest-panel/      程序入口
 internal/
   api/                 HTTP handler 与路由
   auth/                登录 / 会话 / 鉴权中间件
@@ -22,7 +22,7 @@ deploy/                systemd unit 与安装脚本
 ## 本地开发
 ```bash
 # 后端（:8000）
-go run ./cmd/wireguard-ui
+go run ./cmd/wirenest-panel
 
 # 前端热更新（:5173，API 代理到 :8000）
 cd web && npm install && npm run dev
@@ -31,8 +31,8 @@ cd web && npm install && npm run dev
 
 ## 构建单二进制
 ```bash
-make build      # 先打包前端，再 embed 编译，产出 ./wireguard-ui
-./wireguard-ui  # 默认监听 :8000
+make build      # 先打包前端，再 embed 编译，产出 ./wirenest-panel
+./wirenest-panel  # 默认监听 :8000
 ```
 
 ## 一键安装（推荐）
@@ -70,28 +70,31 @@ sudo wirenest
   1) 启动面板      4) 更新面板到最新版
   2) 停止面板      5) 更换运行端口
   3) 重启面板      6) 重置登录密码
+  9) 卸载 WireNest 0) 退出
 ```
 
-也支持子命令：`wirenest {start|stop|restart|update|status}`。其中「重置登录密码」用于忘记密码时找回（重写 systemd 环境变量并清除 `credentials.json`）。
+也支持子命令：`wirenest {start|stop|restart|update|status|uninstall}`。
+- **重置登录密码**：忘记密码时找回（重写 systemd 环境变量并清除 `credentials.json`）。
+- **卸载**：删除面板服务/二进制/管理命令、数据目录、wg0 配置并停用接口、IPv4 转发设置（需输入 `yes` 确认，不可恢复）。
 
 ## 手动部署
 ```bash
-make build                       # 打包前端 + embed 编译，产出 ./wireguard-ui
-sudo install -m755 ./wireguard-ui /usr/local/bin/wireguard-ui
+make build                       # 打包前端 + embed 编译，产出 ./wirenest-panel
+sudo install -m755 ./wirenest-panel /usr/local/bin/wirenest-panel
 sudo cp deploy/wirenest.service /etc/systemd/system/
-# 改好 unit 里的 WGUI_ADMIN_PASS 等，然后：
+# 改好 unit 里的 WIRENEST_ADMIN_PASS 等，然后：
 sudo systemctl enable --now wirenest
 ```
 
 ## 配置（环境变量）
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `WGUI_ADDR` | `:8000` | 监听地址 |
-| `WGUI_ADMIN_USER` | `admin` | 管理员用户名 |
-| `WGUI_ADMIN_PASS` | `admin` | 管理员密码 |
-| `WGUI_DATA_DIR` | `/var/lib/wireguard-ui` | 面板状态目录（私钥/凭据/设置） |
-| `WGUI_WG_CONF` | `/etc/wireguard/wg0.conf` | WireGuard 接口配置 |
-| `WGUI_ENDPOINT` | （空） | 客户端连接的默认公网地址（也可在设置页改） |
+| `WIRENEST_ADDR` | `:8000` | 监听地址 |
+| `WIRENEST_ADMIN_USER` | `admin` | 管理员用户名 |
+| `WIRENEST_ADMIN_PASS` | `admin` | 管理员密码 |
+| `WIRENEST_DATA_DIR` | `/var/lib/wirenest` | 面板状态目录（私钥/凭据/设置） |
+| `WIRENEST_WG_CONF` | `/etc/wireguard/wg0.conf` | WireGuard 接口配置 |
+| `WIRENEST_ENDPOINT` | （空） | 客户端连接的默认公网地址（也可在设置页改） |
 
 ## 里程碑
 - [x] **M0 脚手架**：登录、Dashboard 布局、空卡片、embed、systemd

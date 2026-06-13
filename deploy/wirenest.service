@@ -9,16 +9,16 @@ Wants=network-online.target
 Type=simple
 # Runs as root: the panel drives wg-quick (interface up/down/restart), systemctl
 # (boot autostart toggle) and sysctl (IP forwarding) — all privileged operations.
-Environment=WGUI_ADDR=:8000
-Environment=WGUI_DATA_DIR=/var/lib/wireguard-ui
-Environment=WGUI_WG_CONF=/etc/wireguard/wg0.conf
+Environment=WIRENEST_ADDR=:8000
+Environment=WIRENEST_DATA_DIR=/var/lib/wirenest
+Environment=WIRENEST_WG_CONF=/etc/wireguard/wg0.conf
 # Public host clients dial (optional; settable in the panel too).
-Environment=WGUI_ENDPOINT=
+Environment=WIRENEST_ENDPOINT=
 # CHANGE THESE before exposing the panel.
-Environment=WGUI_ADMIN_USER=admin
-Environment=WGUI_ADMIN_PASS=admin
+Environment=WIRENEST_ADMIN_USER=admin
+Environment=WIRENEST_ADMIN_PASS=admin
 
-ExecStart=/usr/local/bin/wireguard-ui
+ExecStart=/usr/local/bin/wirenest-panel
 Restart=on-failure
 RestartSec=3
 

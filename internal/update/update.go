@@ -128,7 +128,7 @@ func SelfUpdate(ctx context.Context, repo, current string) (string, error) {
 		exe = resolved
 	}
 
-	url := fmt.Sprintf("https://github.com/%s/releases/latest/download/wireguard-ui-linux-%s", repo, runtime.GOARCH)
+	url := fmt.Sprintf("https://github.com/%s/releases/latest/download/wirenest-linux-%s", repo, runtime.GOARCH)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", err

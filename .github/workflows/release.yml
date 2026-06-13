@@ -35,7 +35,10 @@ jobs:
           for arch in amd64 arm64; do
             CGO_ENABLED=0 GOOS=linux GOARCH=$arch \
               go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" \
-              -o "dist/wireguard-ui-linux-$arch" ./cmd/wireguard-ui
+              -o "dist/wirenest-linux-$arch" ./cmd/wirenest-panel
+            # 兼容旧命名：旧版（≤v0.1.4）自更新时请求 wireguard-ui-linux-*，
+            # 提供同一二进制的别名，保证它们也能升级到本版。
+            cp "dist/wirenest-linux-$arch" "dist/wireguard-ui-linux-$arch"
           done
 
       # Use the annotated tag's message as the release notes, so each release
@@ -51,5 +54,7 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/wireguard-ui-linux-*
+          files: |
+            dist/wirenest-linux-*
+            dist/wireguard-ui-linux-*
           body_path: release-notes.md

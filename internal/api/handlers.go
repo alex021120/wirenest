@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
-	"wireguard-ui/internal/auth"
-	"wireguard-ui/internal/config"
-	"wireguard-ui/internal/sysinfo"
-	"wireguard-ui/internal/update"
-	"wireguard-ui/internal/wg"
+	"wirenest/internal/auth"
+	"wirenest/internal/config"
+	"wirenest/internal/sysinfo"
+	"wirenest/internal/update"
+	"wirenest/internal/wg"
 )
 
 // Handlers bundles dependencies shared by the HTTP handlers.

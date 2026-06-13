@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { computed, h, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter, RouterView } from 'vue-router'
-import { NLayout, NLayoutHeader, NLayoutSider, NLayoutContent, NDropdown, NAvatar, NText, useMessage, useNotification, useDialog } from 'naive-ui'
+import { NLayout, NLayoutHeader, NLayoutSider, NLayoutContent, NDropdown, NAvatar, NText, NPopover, NButton, useMessage, useNotification } from 'naive-ui'
 import { api, type Overview } from '../api'
 
 const route = useRoute()
 const router = useRouter()
 const message = useMessage()
 const notification = useNotification()
-const dialog = useDialog()
 
 // --- version display + update check ---
 const version = ref('')
+const latestVersion = ref('')
+const updateAvailable = ref(false)
+const updating = ref(false)
+
 async function checkVersion() {
   let info
   try {
@@ -21,16 +24,12 @@ async function checkVersion() {
   }
   version.value = info.current
   if (info.updateAvailable && info.latest) {
-    dialog.info({
-      title: '发现新版本',
-      content: `当前版本 ${info.current}，最新版本 ${info.latest}。是否现在更新并重启面板？`,
-      positiveText: '立即更新',
-      negativeText: '稍后',
-      onPositiveClick: () => runUpdate(),
-    })
+    latestVersion.value = info.latest
+    updateAvailable.value = true // highlights the version badge (lemon yellow)
   }
 }
 async function runUpdate() {
+  updating.value = true
   try {
     await api.selfUpdate()
     message.loading('正在下载并重启面板，约 10 秒后自动刷新…', { duration: 10000 })
@@ -38,6 +37,7 @@ async function runUpdate() {
     setTimeout(() => location.reload(), 10000)
   } catch (e) {
     message.error('更新失败：' + (e as Error).message)
+    updating.value = false
   }
 }
 
@@ -156,7 +156,16 @@ onUnmounted(() => clearInterval(clientsTimer))
         <div class="brand-text">
           <span class="brand-name">
             WireNest
-            <span v-if="version" class="brand-ver">{{ version }}</span>
+            <n-popover v-if="version && updateAvailable" trigger="hover" placement="bottom-start" :show-arrow="true">
+              <template #trigger>
+                <span class="brand-ver brand-ver-new">{{ version }}</span>
+              </template>
+              <div class="ver-pop">
+                <span class="ver-pop-text">检测到新版本：<b>{{ latestVersion }}</b></span>
+                <n-button size="tiny" type="primary" :loading="updating" @click="runUpdate">更新</n-button>
+              </div>
+            </n-popover>
+            <span v-else-if="version" class="brand-ver">{{ version }}</span>
           </span>
           <span class="brand-sub">WireGuard 面板</span>
         </div>
@@ -310,6 +319,28 @@ onUnmounted(() => clearInterval(clientsTimer))
   margin-left: 4px;
   vertical-align: middle;
   letter-spacing: 0;
+}
+/* New version available: highlight the badge in lemon yellow (hover for popover). */
+.brand-ver-new {
+  color: #1f2933;
+  background: #f2c200;
+  cursor: pointer;
+  box-shadow: 0 0 0 0 rgba(242, 194, 0, 0.5);
+  animation: verPulse 1.8s ease-out infinite;
+}
+@keyframes verPulse {
+  0% { box-shadow: 0 0 0 0 rgba(242, 194, 0, 0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(242, 194, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(242, 194, 0, 0); }
+}
+.ver-pop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ver-pop-text {
+  font-size: 13px;
+  color: #1f2933;
 }
 .brand-sub {
   font-size: 11px;

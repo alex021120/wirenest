@@ -47,12 +47,12 @@ func (c Config) IfaceName() string {
 // Load builds a Config from environment variables.
 func Load() Config {
 	return Config{
-		Addr:         env("WGUI_ADDR", ":8000"),
-		AdminUser:    env("WGUI_ADMIN_USER", "admin"),
-		AdminPass:    env("WGUI_ADMIN_PASS", "admin"),
-		DataDir:      env("WGUI_DATA_DIR", "/var/lib/wireguard-ui"),
-		WgConfPath:   env("WGUI_WG_CONF", "/etc/wireguard/wg0.conf"),
-		EndpointHost: env("WGUI_ENDPOINT", ""),
-		Repo:         env("WGUI_REPO", "alex021120/wirenest"),
+		Addr:         env("WIRENEST_ADDR", ":8000"),
+		AdminUser:    env("WIRENEST_ADMIN_USER", "admin"),
+		AdminPass:    env("WIRENEST_ADMIN_PASS", "admin"),
+		DataDir:      env("WIRENEST_DATA_DIR", "/var/lib/wirenest"),
+		WgConfPath:   env("WIRENEST_WG_CONF", "/etc/wireguard/wg0.conf"),
+		EndpointHost: env("WIRENEST_ENDPOINT", ""),
+		Repo:         env("WIRENEST_REPO", "alex021120/wirenest"),
 	}
 }

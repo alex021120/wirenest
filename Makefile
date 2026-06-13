@@ -1,8 +1,8 @@
-# wireguard-ui build targets.
+# wirenest build targets.
 # The frontend is built into internal/web/dist, then embedded by `go build`,
 # producing a single self-contained static binary.
 
-BINARY := wireguard-ui
+BINARY := wirenest-panel
 # Version stamped into the binary; defaults to the closest git tag.
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
@@ -17,11 +17,11 @@ web:
 
 ## build: build the frontend then the embedded Go binary
 build: web
-	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/wireguard-ui
+	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/wirenest-panel
 
 ## build-go: build only the Go binary (uses whatever is in internal/web/dist)
 build-go:
-	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/wireguard-ui
+	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/wirenest-panel
 
 ## run: build and run locally
 run: build
@@ -29,7 +29,7 @@ run: build
 
 ## dev: run backend (:8000) and vite dev server (:5173) -- two terminals
 dev:
-	@echo "Terminal 1:  go run ./cmd/wireguard-ui"
+	@echo "Terminal 1:  go run ./cmd/wirenest-panel"
 	@echo "Terminal 2:  cd web && npm run dev   # open http://localhost:5173"
 
 clean:

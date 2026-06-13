@@ -119,8 +119,8 @@ func EnableIPv4Forwarding() error {
 	if err := os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1\n"), 0o644); err != nil {
 		return err
 	}
-	return os.WriteFile("/etc/sysctl.d/99-wireguard-ui.conf",
-		[]byte("# Managed by wireguard-ui\nnet.ipv4.ip_forward = 1\n"), 0o644)
+	return os.WriteFile("/etc/sysctl.d/99-wirenest.conf",
+		[]byte("# Managed by wirenest\nnet.ipv4.ip_forward = 1\n"), 0o644)
 }
 
 func moduleLoaded() bool {
