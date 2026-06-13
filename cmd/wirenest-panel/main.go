@@ -17,6 +17,7 @@ import (
 	"wirenest/internal/api"
 	"wirenest/internal/auth"
 	"wirenest/internal/config"
+	"wirenest/internal/update"
 	"wirenest/internal/web"
 	"wirenest/internal/wg"
 )
@@ -71,6 +72,22 @@ func main() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("server error: %v", err)
 		}
+	}()
+
+	// Keep the companion `wirenest` CLI in sync on startup (best-effort), so the
+	// management menu always reflects the running version even if the panel was
+	// updated by an older binary that didn't refresh it.
+	go func() {
+		exe, err := os.Executable()
+		if err != nil {
+			return
+		}
+		if r, err := filepath.EvalSymlinks(exe); err == nil {
+			exe = r
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		update.RefreshCLI(ctx, cfg.Repo, filepath.Dir(exe))
 	}()
 
 	stop := make(chan os.Signal, 1)

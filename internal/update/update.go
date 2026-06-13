@@ -5,7 +5,6 @@ package update
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -30,9 +29,10 @@ var (
 	cacheTTL  = 10 * time.Minute
 )
 
-// Latest returns the latest release tag (e.g. "v0.1.2") for owner/repo. The
-// result is cached briefly so the per-load version check doesn't hit the
-// GitHub API (60 req/h unauthenticated) on every page view.
+// Latest returns the latest release tag (e.g. "v0.1.2") for owner/repo. It reads
+// the 302 redirect of github.com/<repo>/releases/latest (→ .../releases/tag/vX)
+// rather than the GitHub API, which avoids the 60 req/h unauthenticated rate
+// limit that can otherwise make the update check silently fail. Cached briefly.
 func Latest(ctx context.Context, repo string) (string, error) {
 	mu.Lock()
 	if cachedTag != "" && time.Since(cachedAt) < cacheTTL {
@@ -42,34 +42,40 @@ func Latest(ctx context.Context, repo string) (string, error) {
 	}
 	mu.Unlock()
 
-	url := "https://api.github.com/repos/" + repo + "/releases/latest"
+	url := "https://github.com/" + repo + "/releases/latest"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
 	}
 	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "application/vnd.github+json")
-	resp, err := (&http.Client{Timeout: 8 * time.Second}).Do(req)
+	client := &http.Client{
+		Timeout: 8 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse // capture the 302 instead of following it
+		},
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("GitHub API 返回 %d", resp.StatusCode)
+
+	const marker = "/releases/tag/"
+	loc := resp.Header.Get("Location")
+	i := strings.Index(loc, marker)
+	if i < 0 {
+		return "", errors.New("未找到 Release")
 	}
-	var out struct {
-		TagName string `json:"tag_name"`
-	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
-		return "", err
-	}
-	if out.TagName == "" {
+	tag := loc[i+len(marker):]
+	tag = strings.SplitN(tag, "/", 2)[0]
+	tag = strings.SplitN(tag, "?", 2)[0]
+	if tag == "" {
 		return "", errors.New("未找到 Release")
 	}
 	mu.Lock()
-	cachedTag, cachedAt = out.TagName, time.Now()
+	cachedTag, cachedAt = tag, time.Now()
 	mu.Unlock()
-	return out.TagName, nil
+	return tag, nil
 }
 
 // IsNewer reports whether release tag `latest` is strictly newer than `current`
@@ -172,7 +178,7 @@ func SelfUpdate(ctx context.Context, repo, current string) (string, error) {
 
 	// Best-effort: also refresh the companion `wirenest` management CLI, so a
 	// panel update brings new menu features (e.g. uninstall) too.
-	refreshCLI(ctx, repo, filepath.Dir(exe))
+	RefreshCLI(ctx, repo, filepath.Dir(exe))
 
 	// Re-exec into the new binary after a short grace period so the caller's
 	// HTTP response goes out first. Keeps the same PID, so systemd (Type=simple)
@@ -184,10 +190,10 @@ func SelfUpdate(ctx context.Context, repo, current string) (string, error) {
 	return tag, nil
 }
 
-// refreshCLI downloads the latest `wirenest` management script from the repo's
+// RefreshCLI downloads the latest `wirenest` management script from the repo's
 // main branch and installs it next to the panel binary. Best-effort: any failure
 // is ignored (the panel update itself already succeeded).
-func refreshCLI(ctx context.Context, repo, dir string) {
+func RefreshCLI(ctx context.Context, repo, dir string) {
 	url := "https://raw.githubusercontent.com/" + repo + "/main/deploy/wirenest"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
