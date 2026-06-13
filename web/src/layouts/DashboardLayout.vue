@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter, RouterView } from 'vue-router'
-import { NLayout, NLayoutHeader, NLayoutSider, NLayoutContent, NDropdown, NAvatar, NText, NPopover, NButton, useMessage, useNotification } from 'naive-ui'
+import { NLayout, NLayoutHeader, NLayoutSider, NLayoutContent, NDropdown, NAvatar, NText, NPopover, NTooltip, NButton, useMessage, useNotification } from 'naive-ui'
 import { api, type Overview } from '../api'
 
 const route = useRoute()
@@ -12,21 +12,43 @@ const notification = useNotification()
 // --- version display + update check ---
 const version = ref('')
 const latestVersion = ref('')
-const updateAvailable = ref(false)
+const updateAvailable = ref(false) // a newer release exists -> highlight the badge
+const upToDate = ref(false) // we successfully reached GitHub and we're current
 const updating = ref(false)
+const VERSION_RECHECK_MS = 15 * 60 * 1000 // re-check periodically so a release that
+// drops while the panel is open surfaces without a manual reload
+let versionTimer: ReturnType<typeof setInterval> | undefined
+let versionRetry: ReturnType<typeof setTimeout> | undefined
 
 async function checkVersion() {
   let info
   try {
     info = await api.versionInfo()
   } catch {
-    return // offline / GitHub unreachable: just don't show a version
+    // Panel/network blip: retry soon rather than leaving the badge dead all session.
+    scheduleVersionRetry()
+    return
   }
   version.value = info.current
-  if (info.updateAvailable && info.latest) {
+  if (info.latest) {
+    // Server reached GitHub: we know definitively whether we're current.
     latestVersion.value = info.latest
-    updateAvailable.value = true // highlights the version badge (lemon yellow)
+    updateAvailable.value = !!info.updateAvailable
+    upToDate.value = !info.updateAvailable
+  } else {
+    // Server couldn't reach GitHub this time; show the version plainly and retry.
+    upToDate.value = false
+    scheduleVersionRetry()
   }
+}
+
+// One-shot retry (deduped) after a failed/incomplete check.
+function scheduleVersionRetry() {
+  if (versionRetry) return
+  versionRetry = setTimeout(() => {
+    versionRetry = undefined
+    checkVersion()
+  }, 30000)
 }
 async function runUpdate() {
   updating.value = true
@@ -135,8 +157,13 @@ onMounted(async () => {
   pollClients()
   clientsTimer = setInterval(pollClients, CLIENT_POLL_MS)
   checkVersion()
+  versionTimer = setInterval(checkVersion, VERSION_RECHECK_MS)
 })
-onUnmounted(() => clearInterval(clientsTimer))
+onUnmounted(() => {
+  clearInterval(clientsTimer)
+  clearInterval(versionTimer)
+  clearTimeout(versionRetry)
+})
 </script>
 
 <template>
@@ -165,6 +192,12 @@ onUnmounted(() => clearInterval(clientsTimer))
                 <n-button size="tiny" type="primary" :loading="updating" @click="runUpdate">更新</n-button>
               </div>
             </n-popover>
+            <n-tooltip v-else-if="version && upToDate" trigger="hover" placement="bottom-start">
+              <template #trigger>
+                <span class="brand-ver">{{ version }}</span>
+              </template>
+              已是最新版本
+            </n-tooltip>
             <span v-else-if="version" class="brand-ver">{{ version }}</span>
           </span>
           <span class="brand-sub">WireGuard 面板</span>
