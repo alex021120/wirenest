@@ -170,6 +170,10 @@ func SelfUpdate(ctx context.Context, repo, current string) (string, error) {
 		return "", fmt.Errorf("替换失败：%w", err)
 	}
 
+	// Best-effort: also refresh the companion `wirenest` management CLI, so a
+	// panel update brings new menu features (e.g. uninstall) too.
+	refreshCLI(ctx, repo, filepath.Dir(exe))
+
 	// Re-exec into the new binary after a short grace period so the caller's
 	// HTTP response goes out first. Keeps the same PID, so systemd (Type=simple)
 	// doesn't notice; the listen socket is CLOEXEC so the new image re-binds.
@@ -178,6 +182,43 @@ func SelfUpdate(ctx context.Context, repo, current string) (string, error) {
 		_ = syscall.Exec(exe, os.Args, os.Environ())
 	}()
 	return tag, nil
+}
+
+// refreshCLI downloads the latest `wirenest` management script from the repo's
+// main branch and installs it next to the panel binary. Best-effort: any failure
+// is ignored (the panel update itself already succeeded).
+func refreshCLI(ctx context.Context, repo, dir string) {
+	url := "https://raw.githubusercontent.com/" + repo + "/main/deploy/wirenest"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("User-Agent", userAgent)
+	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil || !strings.HasPrefix(string(body), "#!") {
+		return // not a valid script
+	}
+	tmp, err := os.CreateTemp(dir, ".wirenest-cli-*")
+	if err != nil {
+		return
+	}
+	tmpName := tmp.Name()
+	_, werr := tmp.Write(body)
+	tmp.Close()
+	if werr != nil {
+		os.Remove(tmpName)
+		return
+	}
+	_ = os.Chmod(tmpName, 0o755)
+	_ = os.Rename(tmpName, filepath.Join(dir, "wirenest"))
 }
 
 // validate sanity-checks a downloaded binary: ELF magic + it runs `-version`

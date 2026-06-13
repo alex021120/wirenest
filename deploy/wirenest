@@ -69,6 +69,12 @@ panel_update() {
   if ! newver="$("$tmp" -version 2>/dev/null)"; then echo "${c_r}下载的文件无效，已放弃${c_reset}"; rm -f "$tmp"; return; fi
   install -m755 "$tmp" "$BIN"; rm -f "$tmp"
   systemctl restart "$UNIT_NAME"
+  # 顺带刷新管理脚本自身（带上新菜单功能，如卸载）
+  local cli; cli="$(mktemp)"
+  if curl -fsSL "https://raw.githubusercontent.com/${REPO}/main/deploy/wirenest" -o "$cli" 2>/dev/null && head -1 "$cli" | grep -q '^#!'; then
+    install -m755 "$cli" /usr/local/bin/wirenest
+  fi
+  rm -f "$cli"
   echo "${c_g}已更新: ${current:-?} → ${newver}${c_reset}"
 }
 

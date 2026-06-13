@@ -37,6 +37,20 @@ func env(key, def string) string {
 	return def
 }
 
+// env2 reads the new WIRENEST_* key, falling back to the legacy WGUI_* key, then
+// the default. This keeps a panel that self-updated across the rename working:
+// its systemd unit still has WGUI_* vars (port/data dir/credentials), which the
+// new binary would otherwise ignore and reset to defaults.
+func env2(newKey, legacyKey, def string) string {
+	if v := os.Getenv(newKey); v != "" {
+		return v
+	}
+	if v := os.Getenv(legacyKey); v != "" {
+		return v
+	}
+	return def
+}
+
 // IfaceName derives the WireGuard interface name from the config filename,
 // e.g. "/etc/wireguard/wg0.conf" -> "wg0".
 func (c Config) IfaceName() string {
@@ -47,12 +61,12 @@ func (c Config) IfaceName() string {
 // Load builds a Config from environment variables.
 func Load() Config {
 	return Config{
-		Addr:         env("WIRENEST_ADDR", ":8000"),
-		AdminUser:    env("WIRENEST_ADMIN_USER", "admin"),
-		AdminPass:    env("WIRENEST_ADMIN_PASS", "admin"),
-		DataDir:      env("WIRENEST_DATA_DIR", "/var/lib/wirenest"),
-		WgConfPath:   env("WIRENEST_WG_CONF", "/etc/wireguard/wg0.conf"),
-		EndpointHost: env("WIRENEST_ENDPOINT", ""),
-		Repo:         env("WIRENEST_REPO", "alex021120/wirenest"),
+		Addr:         env2("WIRENEST_ADDR", "WGUI_ADDR", ":8000"),
+		AdminUser:    env2("WIRENEST_ADMIN_USER", "WGUI_ADMIN_USER", "admin"),
+		AdminPass:    env2("WIRENEST_ADMIN_PASS", "WGUI_ADMIN_PASS", "admin"),
+		DataDir:      env2("WIRENEST_DATA_DIR", "WGUI_DATA_DIR", "/var/lib/wirenest"),
+		WgConfPath:   env2("WIRENEST_WG_CONF", "WGUI_WG_CONF", "/etc/wireguard/wg0.conf"),
+		EndpointHost: env2("WIRENEST_ENDPOINT", "WGUI_ENDPOINT", ""),
+		Repo:         env2("WIRENEST_REPO", "WGUI_REPO", "alex021120/wirenest"),
 	}
 }

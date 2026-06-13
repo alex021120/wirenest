@@ -2,6 +2,10 @@
 
 本项目的版本变更记录。每个版本的发布说明也会同步显示在 GitHub Releases 页（来自对应 tag 的注释信息）。
 
+## v0.1.6
+- 修复跨命名升级丢配置：旧版（`WGUI_*` 环境变量）自更新到新版后，面板端口会被重置为 8000（数据目录、登录密码同理）。现在新二进制读不到 `WIRENEST_*` 时自动回退读旧的 `WGUI_*`，升级后端口/密码/数据目录都保留并恢复。
+- 面板更新时一并刷新 `wirenest` 管理脚本，使更新后菜单带上新功能（如卸载），不再需要手动重装。
+
 ## v0.1.5
 - 全面更名 wireguard-ui → wirenest：面板二进制 `/usr/local/bin/wirenest-panel`、数据目录 `/var/lib/wirenest`、环境变量前缀 `WIRENEST_`、Go 模块名、Release 资产 `wirenest-linux-*`。升级时自动迁移旧命名（数据目录、单元、二进制、sysctl），并保留密码；旧版自更新仍提供 `wireguard-ui-linux-*` 兼容别名。
 - `wirenest` 菜单新增「卸载」：删除面板服务/二进制/管理命令、数据目录、wg0 配置并停用接口、IPv4 转发设置（需输入 yes 确认）。
