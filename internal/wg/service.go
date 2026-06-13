@@ -14,15 +14,21 @@ type Service struct {
 	iface    string
 	secrets  *Secrets
 	settings *Settings
+	limits   *Limits
 
 	mu sync.Mutex // serializes read-modify-write of the .conf
 }
 
-func NewService(confPath, iface string, secrets *Secrets, settings *Settings) *Service {
-	return &Service{confPath: confPath, iface: iface, secrets: secrets, settings: settings}
+func NewService(confPath, iface string, secrets *Secrets, settings *Settings, limits *Limits) *Service {
+	return &Service{confPath: confPath, iface: iface, secrets: secrets, settings: settings, limits: limits}
 }
 
 // ClientView is one peer as shown in the UI: static config + live stats.
+//
+// Byte totals are the panel's persistent cumulative counters (they survive
+// interface/host restarts), reported from the client's perspective:
+// UploadTotal = client upload, DownloadTotal = client download. The quota
+// (DownloadLimit) caps DownloadTotal.
 type ClientView struct {
 	Name          string     `json:"name"`
 	PublicKey     string     `json:"publicKey"`
@@ -30,8 +36,14 @@ type ClientView struct {
 	Subnets       []string   `json:"subnets"` // announced LANs behind this client
 	Endpoint      string     `json:"endpoint"`
 	LastHandshake *time.Time `json:"lastHandshake"`
-	ReceiveBytes  int64      `json:"rxBytes"`
-	TransmitBytes int64      `json:"txBytes"`
+	ReceiveBytes  int64      `json:"rxBytes"` // live (instantaneous) upload, for speed calc
+	TransmitBytes int64      `json:"txBytes"` // live (instantaneous) download, for speed calc
+	UploadTotal   int64      `json:"uploadTotal"`   // cumulative client upload
+	DownloadTotal int64      `json:"downloadTotal"` // cumulative client download (quota-counted)
+	DownloadLimit int64      `json:"downloadLimit"` // bytes; 0 = unlimited
+	ExpiresAt     *time.Time `json:"expiresAt"`     // nil = never expires
+	Blocked       bool       `json:"blocked"`
+	BlockReason   string     `json:"blockReason"` // "quota" | "expired"
 	Online        bool       `json:"online"`
 }
 
@@ -113,6 +125,10 @@ func (s *Service) Overview() OverviewView {
 
 func (s *Service) Clients() ClientsView {
 	cfg, configured, dev, live := s.load()
+	var usage map[string]ClientLimit
+	if s.limits != nil {
+		usage = s.limits.Snapshot()
+	}
 	out := ClientsView{
 		Clients:    make([]ClientView, 0, len(cfg.Peers)),
 		Configured: configured,
@@ -130,6 +146,14 @@ func (s *Service) Clients() ClientsView {
 			AllowedIPs: allowed,
 			Subnets:    announced,
 			Endpoint:   p.Endpoint,
+		}
+		if u, ok := usage[p.PublicKey]; ok {
+			cv.UploadTotal = u.RxTotal
+			cv.DownloadTotal = u.TxTotal
+			cv.DownloadLimit = u.DownloadLimit
+			cv.ExpiresAt = u.ExpiresAt
+			cv.Blocked = u.Blocked
+			cv.BlockReason = u.BlockReason
 		}
 		if live {
 			if st, ok := dev.Peers[p.PublicKey]; ok {

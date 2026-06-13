@@ -44,6 +44,12 @@ export interface Client {
   lastHandshake: string | null
   rxBytes: number
   txBytes: number
+  uploadTotal: number
+  downloadTotal: number
+  downloadLimit: number
+  expiresAt: string | null
+  blocked: boolean
+  blockReason: string
   online: boolean
 }
 
@@ -151,6 +157,16 @@ export const api = {
     request<WriteResult>('/api/clients/subnets', {
       method: 'POST',
       body: JSON.stringify({ publicKey, subnets }),
+    }),
+  setClientLimit: (publicKey: string, downloadLimit: number, expiresAt: string | null) =>
+    request<WriteResult>('/api/clients/limit', {
+      method: 'POST',
+      body: JSON.stringify({ publicKey, downloadLimit, expiresAt }),
+    }),
+  resetClientUsage: (publicKey: string) =>
+    request<WriteResult>('/api/clients/usage/reset', {
+      method: 'POST',
+      body: JSON.stringify({ publicKey }),
     }),
   network: () => request<{ pools: Pool[] }>('/api/network'),
   detectPublicIP: () => request<{ ip: string }>('/api/public-ip'),

@@ -27,6 +27,8 @@ func (h *Handlers) Mount(mux *http.ServeMux, mgr *auth.Manager) {
 	mux.HandleFunc("POST /api/clients/delete", mgr.Require(h.DeleteClient))
 	mux.HandleFunc("POST /api/clients/rename", mgr.Require(h.RenameClient))
 	mux.HandleFunc("POST /api/clients/subnets", mgr.Require(h.SetClientSubnets))
+	mux.HandleFunc("POST /api/clients/limit", mgr.Require(h.SetClientLimit))
+	mux.HandleFunc("POST /api/clients/usage/reset", mgr.Require(h.ResetClientUsage))
 	mux.HandleFunc("POST /api/clients/config", mgr.Require(h.ClientConfig))
 	mux.HandleFunc("GET /api/network", mgr.Require(h.Network))
 	mux.HandleFunc("GET /api/public-ip", mgr.Require(h.DetectPublicIP))

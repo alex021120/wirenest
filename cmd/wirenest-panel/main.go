@@ -51,8 +51,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("open settings store: %v", err)
 	}
+	limits, err := wg.OpenLimits(filepath.Join(cfg.DataDir, "limits.json"))
+	if err != nil {
+		log.Fatalf("open limits store: %v", err)
+	}
 
-	svc := wg.NewService(cfg.WgConfPath, cfg.IfaceName(), secrets, settings)
+	svc := wg.NewService(cfg.WgConfPath, cfg.IfaceName(), secrets, settings, limits)
 	handlers := api.NewHandlers(cfg, mgr, svc)
 
 	mux := http.NewServeMux()
@@ -89,6 +93,12 @@ func main() {
 		defer cancel()
 		update.RefreshCLI(ctx, cfg.Repo, filepath.Dir(exe))
 	}()
+
+	// Periodically sample transfer counters to accumulate per-client usage
+	// (surviving restarts) and enforce download quotas / expiry.
+	accountCtx, accountCancel := context.WithCancel(context.Background())
+	defer accountCancel()
+	go svc.StartAccounting(accountCtx)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)

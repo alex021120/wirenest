@@ -2,7 +2,8 @@
 import { computed, h, onMounted, ref } from 'vue'
 import {
   NCard, NDataTable, NButton, NSpace, NText, NTag, NTooltip, NModal, NInput,
-  NDropdown, NAlert, NSelect, NFormItem, useMessage, useDialog,
+  NDropdown, NAlert, NSelect, NFormItem, NInputNumber, NDatePicker, NSwitch,
+  useMessage, useDialog,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import { api, fmtBytes, fmtSince, type AddResult, type Client, type ClientConfigView, type Pool } from '../api'
@@ -24,6 +25,12 @@ const banner = computed(() => {
 // Split a free-text list of CIDRs (comma- or newline-separated) into entries.
 function parseSubnets(s: string): string[] {
   return s.split(/[\n,]/).map((x) => x.trim()).filter(Boolean)
+}
+
+// Local YYYY-MM-DD for the expiry column (full timestamp shown on hover).
+function fmtDay(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
 // --- create ---
@@ -205,6 +212,80 @@ async function submitSubnets() {
   }
 }
 
+// --- traffic limit / expiry ---
+const UNIT_BYTES: Record<string, number> = { MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 }
+const unitOptions = [
+  { label: 'MB', value: 'MB' },
+  { label: 'GB', value: 'GB' },
+  { label: 'TB', value: 'TB' },
+]
+const limitOpen = ref(false)
+const limitTarget = ref<Client | null>(null)
+const limitValue = ref<number | null>(null) // in the selected unit; null/0 = unlimited
+const limitUnit = ref<'MB' | 'GB' | 'TB'>('GB')
+const expiryEnabled = ref(false)
+const expiryTs = ref<number | null>(null) // ms timestamp from the date picker
+const savingLimit = ref(false)
+
+function openLimit(row: Client) {
+  limitTarget.value = row
+  if (row.downloadLimit > 0) {
+    limitUnit.value = 'GB'
+    limitValue.value = Number((row.downloadLimit / UNIT_BYTES.GB).toFixed(2))
+  } else {
+    limitUnit.value = 'GB'
+    limitValue.value = null
+  }
+  expiryEnabled.value = !!row.expiresAt
+  expiryTs.value = row.expiresAt ? new Date(row.expiresAt).getTime() : Date.now() + 30 * 86400_000
+  limitOpen.value = true
+}
+
+async function submitLimit() {
+  if (!limitTarget.value) return
+  savingLimit.value = true
+  try {
+    const bytes =
+      limitValue.value && limitValue.value > 0
+        ? Math.round(limitValue.value * UNIT_BYTES[limitUnit.value])
+        : 0
+    const expiresAt =
+      expiryEnabled.value && expiryTs.value ? new Date(expiryTs.value).toISOString() : null
+    const res = await api.setClientLimit(limitTarget.value.publicKey, bytes, expiresAt)
+    limitOpen.value = false
+    if (res.reloadError) {
+      message.warning('已保存，但热加载失败：' + res.reloadError)
+    } else {
+      message.success('流量与期限已更新')
+    }
+    await load()
+  } catch (e) {
+    message.error((e as Error).message)
+  } finally {
+    savingLimit.value = false
+  }
+}
+
+async function resetUsage(row: Client) {
+  try {
+    await api.resetClientUsage(row.publicKey)
+    message.success('已清零已用流量')
+    await load()
+  } catch (e) {
+    message.error((e as Error).message)
+  }
+}
+
+function confirmResetUsage(row: Client) {
+  dialog.warning({
+    title: '清零已用流量',
+    content: `确认将「${row.name || '未命名'}」的已用流量清零？若该客户端因超额被停用，将恢复连接。`,
+    positiveText: '清零',
+    negativeText: '取消',
+    onPositiveClick: () => resetUsage(row),
+  })
+}
+
 // --- delete ---
 async function remove(row: Client) {
   try {
@@ -228,6 +309,8 @@ function confirmDelete(row: Client) {
 
 // --- "更多" actions menu ---
 const moreOptions = [
+  { label: '流量与期限', key: 'limit' },
+  { label: '清零已用流量', key: 'resetUsage' },
   { label: '宣告内网', key: 'subnets' },
   { label: '重命名', key: 'rename' },
   { type: 'divider', key: 'd1' },
@@ -235,7 +318,9 @@ const moreOptions = [
 ]
 
 function onMoreSelect(key: string, row: Client) {
-  if (key === 'subnets') openSubnets(row)
+  if (key === 'limit') openLimit(row)
+  else if (key === 'resetUsage') confirmResetUsage(row)
+  else if (key === 'subnets') openSubnets(row)
   else if (key === 'rename') openRename(row)
   else if (key === 'delete') confirmDelete(row)
 }
@@ -287,14 +372,47 @@ const columns: DataTableColumns<Client> = [
         default: () => (r.lastHandshake ? new Date(r.lastHandshake).toLocaleString() : '从未握手'),
       }),
   },
-  { title: '上行', key: 'txBytes', render: (r) => fmtBytes(r.txBytes) },
-  { title: '下行', key: 'rxBytes', render: (r) => fmtBytes(r.rxBytes) },
+  { title: '上行', key: 'uploadTotal', render: (r) => fmtBytes(r.uploadTotal) },
+  {
+    title: '下行',
+    key: 'downloadTotal',
+    render: (r) => {
+      const used = fmtBytes(r.downloadTotal)
+      if (r.downloadLimit > 0) {
+        const over = r.downloadTotal >= r.downloadLimit
+        return h('div', { style: 'line-height:1.3' }, [
+          h('span', { style: over ? 'color:#e5484d' : '' }, used),
+          h(NText, { depth: 3, style: 'font-size:12px;display:block' }, () => `上限 ${fmtBytes(r.downloadLimit)}`),
+        ])
+      }
+      return used
+    },
+  },
+  {
+    title: '期限',
+    key: 'expiresAt',
+    render: (r) => {
+      if (!r.expiresAt) return h(NText, { depth: 3 }, () => '永久')
+      const exp = new Date(r.expiresAt)
+      const expired = exp.getTime() < Date.now()
+      return h(NTooltip, null, {
+        trigger: () =>
+          h(NText, { type: expired ? 'error' : undefined, depth: expired ? undefined : 2 }, () => fmtDay(exp)),
+        default: () => exp.toLocaleString(),
+      })
+    },
+  },
   {
     title: '状态',
     key: 'online',
-    render: (r) =>
-      h(NTag, { type: r.online ? 'success' : 'default', size: 'small', bordered: false },
-        () => (r.online ? '在线' : '离线')),
+    render: (r) => {
+      if (r.blocked) {
+        const label = r.blockReason === 'expired' ? '已停用·到期' : '已停用·超额'
+        return h(NTag, { type: 'error', size: 'small', bordered: false }, () => label)
+      }
+      return h(NTag, { type: r.online ? 'success' : 'default', size: 'small', bordered: false },
+        () => (r.online ? '在线' : '离线'))
+    },
   },
   {
     title: '操作',
@@ -352,6 +470,7 @@ onMounted(load)
         :data="clients"
         :loading="loading"
         :bordered="false"
+        :scroll-x="1240"
         :row-key="(row: Client) => row.publicKey"
       />
     </n-card>
@@ -465,6 +584,54 @@ onMounted(load)
         <n-space justify="end">
           <n-button @click="subnetsOpen = false">取消</n-button>
           <n-button type="primary" :loading="savingSubnets" @click="submitSubnets">保存</n-button>
+        </n-space>
+      </n-space>
+    </n-modal>
+
+    <!-- Traffic limit / expiry -->
+    <n-modal
+      v-model:show="limitOpen"
+      preset="card"
+      :title="`流量与期限 · ${limitTarget?.name || '未命名'}`"
+      style="width: 480px"
+    >
+      <n-space vertical :size="14">
+        <n-text depth="3" style="font-size: 13px">
+          下行流量上限只统计该客户端的<b>下载</b>（服务端发往它的流量）。达到上限或到期后会自动断开该客户端，直到提高上限、清零流量或延长期限。
+        </n-text>
+        <n-space v-if="limitTarget" :size="8" align="center">
+          <n-text depth="3">已用下行</n-text>
+          <n-text strong>{{ fmtBytes(limitTarget.downloadTotal) }}</n-text>
+        </n-space>
+        <n-form-item label="下行流量上限" :show-feedback="false">
+          <n-space :size="8" align="center" :wrap="false" style="width: 100%">
+            <n-input-number
+              v-model:value="limitValue"
+              :min="0"
+              :precision="2"
+              placeholder="留空 = 不限"
+              style="flex: 1"
+            />
+            <n-select v-model:value="limitUnit" :options="unitOptions" style="width: 88px" />
+          </n-space>
+        </n-form-item>
+        <n-form-item label="使用期限" :show-feedback="false">
+          <n-space :size="10" align="center" :wrap="false" style="width: 100%">
+            <n-switch v-model:value="expiryEnabled" />
+            <n-date-picker
+              v-model:value="expiryTs"
+              type="datetime"
+              :disabled="!expiryEnabled"
+              style="flex: 1"
+            />
+          </n-space>
+        </n-form-item>
+        <n-text depth="3" style="font-size: 12px">
+          关闭开关表示永久有效；开启则在所选时间点之后停用该客户端。
+        </n-text>
+        <n-space justify="end">
+          <n-button @click="limitOpen = false">取消</n-button>
+          <n-button type="primary" :loading="savingLimit" @click="submitLimit">保存</n-button>
         </n-space>
       </n-space>
     </n-modal>

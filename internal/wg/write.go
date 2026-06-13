@@ -125,6 +125,9 @@ func (s *Service) DeleteClient(publicKey string) (*WriteResult, error) {
 		return nil, err
 	}
 	_ = s.secrets.Delete(publicKey) // best-effort cleanup
+	if s.limits != nil {
+		s.limits.Delete(publicKey)
+	}
 	return s.reloadResult(), nil
 }
 
@@ -276,6 +279,9 @@ func (s *Service) reload() (bool, error) {
 		}
 		return false, fmt.Errorf("应用配置失败（wg syncconf）：%s", msg)
 	}
+	// syncconf re-adds every .conf peer, including any that are quota/expiry
+	// blocked — drop those again so a config change can't briefly un-block them.
+	s.removeBlockedLocked()
 	return true, nil
 }
 

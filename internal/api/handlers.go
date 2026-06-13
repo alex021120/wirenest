@@ -232,6 +232,52 @@ func (h *Handlers) SetClientSubnets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res)
 }
 
+// SetClientLimit sets a client's download quota and/or usage expiry. The quota
+// counts only the client's download (bytes the server transmits to it); 0 means
+// unlimited. expiresAt is an RFC3339 timestamp, or null/empty for no expiry.
+func (h *Handlers) SetClientLimit(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		PublicKey     string  `json:"publicKey"`
+		DownloadLimit int64   `json:"downloadLimit"`
+		ExpiresAt     *string `json:"expiresAt"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PublicKey == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "缺少客户端公钥"})
+		return
+	}
+	var expiresAt *time.Time
+	if req.ExpiresAt != nil && strings.TrimSpace(*req.ExpiresAt) != "" {
+		t, err := time.Parse(time.RFC3339, strings.TrimSpace(*req.ExpiresAt))
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "无效的到期时间"})
+			return
+		}
+		expiresAt = &t
+	}
+	res, err := h.wg.SetClientLimit(req.PublicKey, req.DownloadLimit, expiresAt)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+// ResetClientUsage zeroes a client's accumulated traffic (e.g. for a new period),
+// which also lifts a quota block.
+func (h *Handlers) ResetClientUsage(w http.ResponseWriter, r *http.Request) {
+	var req keyReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PublicKey == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "缺少客户端公钥"})
+		return
+	}
+	res, err := h.wg.ResetClientUsage(req.PublicKey)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
 type keyReq struct {
 	PublicKey string `json:"publicKey"`
 }

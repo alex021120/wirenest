@@ -148,6 +148,7 @@ func (s *Service) restartInterface() (bool, error) {
 	if out, err := run("wg-quick", "up", s.iface); err != nil {
 		return false, fmt.Errorf("接口启动失败：%s", out)
 	}
+	s.removeBlockedLocked() // wg-quick up re-adds all peers; re-drop blocked ones
 	return true, nil
 }
 
@@ -170,6 +171,7 @@ func (s *Service) InterfaceAction(action string) error {
 		if out, err := run("wg-quick", "up", s.iface); err != nil {
 			return fmt.Errorf("启动失败：%s", out)
 		}
+		s.removeBlockedLocked()
 	case "down":
 		if !live {
 			return fmt.Errorf("接口未在运行")
@@ -189,6 +191,7 @@ func (s *Service) InterfaceAction(action string) error {
 		if out, err := run("wg-quick", "up", s.iface); err != nil {
 			return fmt.Errorf("启动失败：%s", out)
 		}
+		s.removeBlockedLocked()
 	default:
 		return fmt.Errorf("未知操作：%s", action)
 	}
