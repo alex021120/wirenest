@@ -1,6 +1,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"context"
 	"errors"
 	"log"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -48,7 +50,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           logRequests(mux),
+		Handler:           logRequests(gzipMiddleware(mux)),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -72,11 +74,65 @@ func main() {
 	}
 }
 
-// logRequests is a tiny access-log middleware.
+// quietPaths are polled frequently by the UI; logging their (successful) reads
+// would flood the log on an idle panel, so we skip them unless they error.
+var quietPaths = map[string]bool{
+	"/api/overview": true, "/api/clients": true, "/api/system": true,
+	"/api/health": true, "/api/me": true,
+}
+
+// logRequests is a tiny access-log middleware. It records the status code so it
+// can stay quiet for the chatty poll/static reads but still surface errors.
 func logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		next.ServeHTTP(w, r)
-		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start).Round(time.Millisecond))
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rec, r)
+		if rec.status < 400 && (quietPaths[r.URL.Path] || strings.HasPrefix(r.URL.Path, "/assets/")) {
+			return
+		}
+		log.Printf("%s %s %d %s", r.Method, r.URL.Path, rec.status, time.Since(start).Round(time.Millisecond))
 	})
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+	s.status = code
+	s.ResponseWriter.WriteHeader(code)
+}
+
+// gzipMiddleware compresses responses for clients that accept gzip. The big win
+// is the embedded JS/CSS bundle (~290KB -> ~95KB); JSON responses shrink too.
+func gzipMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Add("Vary", "Accept-Encoding")
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+		next.ServeHTTP(&gzipResponseWriter{ResponseWriter: w, gz: gz}, r)
+	})
+}
+
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	gz *gzip.Writer
+}
+
+// Drop Content-Length (gzip changes the body size) before headers are flushed.
+func (g *gzipResponseWriter) WriteHeader(code int) {
+	g.ResponseWriter.Header().Del("Content-Length")
+	g.ResponseWriter.WriteHeader(code)
+}
+
+func (g *gzipResponseWriter) Write(b []byte) (int, error) {
+	g.ResponseWriter.Header().Del("Content-Length")
+	return g.gz.Write(b)
 }

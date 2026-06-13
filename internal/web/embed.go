@@ -29,10 +29,19 @@ func Handler() http.Handler {
 		}
 		if _, err := fs.Stat(sub, p); err != nil {
 			// Not a real asset: serve the SPA shell so the router can take over.
+			w.Header().Set("Cache-Control", "no-cache")
 			r2 := r.Clone(r.Context())
 			r2.URL.Path = "/"
 			fileServer.ServeHTTP(w, r2)
 			return
+		}
+		// Vite emits content-hashed filenames under /assets, so they can be cached
+		// forever; index.html (and anything else) must be revalidated so a redeploy
+		// is picked up.
+		if strings.HasPrefix(p, "assets/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache")
 		}
 		fileServer.ServeHTTP(w, r)
 	})

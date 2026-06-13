@@ -33,12 +33,22 @@ function sample(ov: Overview) {
 }
 
 async function tick() {
+  if (document.hidden) return // don't poll while the tab is in the background
   try {
     const ov = await api.overview()
     data.value = ov
     sample(ov)
   } catch {
     /* transient; keep last values */
+  }
+}
+
+// When the tab becomes visible again, reset the speed baseline (so we don't
+// average over the hidden gap) and refresh immediately.
+function onVisible() {
+  if (!document.hidden) {
+    prev = null
+    tick()
   }
 }
 
@@ -92,8 +102,12 @@ async function control(action: 'up' | 'down' | 'restart') {
 onMounted(() => {
   load()
   timer = setInterval(tick, POLL_MS)
+  document.addEventListener('visibilitychange', onVisible)
 })
-onUnmounted(() => clearInterval(timer))
+onUnmounted(() => {
+  clearInterval(timer)
+  document.removeEventListener('visibilitychange', onVisible)
+})
 </script>
 
 <template>

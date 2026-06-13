@@ -55,6 +55,7 @@ let seeded = false
 let clientsTimer: ReturnType<typeof setInterval> | undefined
 
 async function pollClients() {
+  if (document.hidden) return // pause online-detection polling in a hidden tab
   let res
   try {
     res = await api.clients()
